@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rx Reader — Prescription Interpreter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['DM Serif Display', 'Georgia', 'serif'],
+            sans: ['DM Sans', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            teal: {
+              50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4',
+              300: '#5eead4', 400: '#2dd4bf', 500: '#14b8a6',
+              600: '#0d9488', 700: '#0f766e', 800: '#115e59', 900: '#134e4a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { font-family: 'DM Sans', system-ui, sans-serif; }
+    .font-serif { font-family: 'DM Serif Display', Georgia, serif; }
+    .drop-zone { transition: all 0.25s ease; }
+    .drop-zone.drag-over { border-color: #14b8a6; background-color: #f0fdfa; transform: scale(1.01); }
+    .fade-in { animation: fadeIn 0.5s ease forwards; }
+    .slide-up { animation: slideUp 0.4s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .med-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(13,148,136,0.12); }
+    .med-card { transition: all 0.2s ease; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #ccfbf1; border-top-color: #0d9488; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .preview-img { max-height: 300px; object-fit: contain; border-radius: 12px; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f0fdfa; }
+    ::-webkit-scrollbar-thumb { background: #5eead4; border-radius: 99px; }
+
+    /* Urdu RTL */
+    .urdu-text { font-family: 'Segoe UI', Tahoma, sans-serif; direction: rtl; text-align: right; line-height: 2; font-size: 1.05em; }
+
+    /* Modal */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .modal-box { background: white; border-radius: 20px; max-width: 520px; width: 100%; max-height: 88vh; overflow-y: auto; box-shadow: 0 25px 60px rgba(0,0,0,0.25); }
+    .mini-spinner { width: 24px; height: 24px; border: 3px solid #ccfbf1; border-top-color: #0d9488; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-teal-100 sticky top-0 z-50 shadow-sm">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center shadow-md">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-serif text-xl text-slate-800 leading-none">Rx Reader</h1>
+          <p class="text-xs text-teal-600 font-medium leading-none mt-0.5">Prescription Interpreter</p>
+        </div>
+      </div>
+      <span class="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
+        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+        AI-Powered · Free to Use
+      </span>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="bg-gradient-to-br from-teal-700 via-teal-600 to-teal-500 text-white py-12 px-4">
+    <div class="max-w-3xl mx-auto text-center">
+      <p class="text-teal-200 text-sm font-medium tracking-widest uppercase mb-3">For Pakistani Patients</p>
+      <h2 class="font-serif text-3xl sm:text-4xl leading-tight mb-4">
+        Understand Your Doctor's<br/>
+        <span class="italic text-teal-200">Prescription Instantly</span>
+      </h2>
+      <p class="text-teal-100 text-base max-w-xl mx-auto leading-relaxed">
+        Upload a photo of your handwritten prescription. Our AI reads the image directly,
+        identifies medicines, and explains everything — in English or Urdu.
+      </p>
+      <div class="flex flex-wrap gap-4 justify-center mt-6 text-sm">
+        <div class="flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+          Urdu Translation
+        </div>
+        <div class="flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+          Medicine Details & Images
+        </div>
+        <div class="flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-2 rounded-full">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+          Download PDF Summary
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main -->
+  <main class="max-w-5xl mx-auto px-4 py-10">
+
+    <!-- Upload Card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-teal-100 overflow-hidden mb-8">
+      <div class="p-6 sm:p-8">
+        <h3 class="font-serif text-xl text-slate-800 mb-1">Upload Prescription</h3>
+        <p class="text-sm text-slate-500 mb-6">Supports JPG, PNG, WEBP · Works with handwritten prescriptions in any language</p>
+
+        <div id="dropZone" class="drop-zone border-2 border-dashed border-teal-200 rounded-xl p-8 text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50 transition-all" onclick="document.getElementById('fileInput').click()">
+          <div id="dropContent">
+            <div class="w-16 h-16 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+              </svg>
+            </div>
+            <p class="text-slate-700 font-medium mb-1">Drop your prescription here</p>
+            <p class="text-sm text-slate-400">or click to browse files</p>
+          </div>
+          <div id="previewContainer" class="hidden">
+            <img id="previewImg" class="preview-img mx-auto mb-3" alt="Preview" />
+            <p id="previewName" class="text-sm text-teal-700 font-medium"></p>
+            <p class="text-xs text-slate-400 mt-1">Click to change image</p>
+          </div>
+        </div>
+
+        <input type="file" id="fileInput" accept="image/*" class="hidden" />
+
+        <!-- Provider Info -->
+        <div class="mt-5 p-4 bg-teal-50 rounded-xl border border-teal-100 flex items-center gap-4">
+          <div class="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            </svg>
+          </div>
+          <div class="flex-1">
+            <p class="text-sm font-semibold text-slate-800">Advanced Vision AI</p>
+            <p class="text-xs text-slate-500">Instantly reads &amp; analyzes handwritten prescriptions</p>
+          </div>
+          <span class="inline-flex items-center gap-1.5 text-xs font-semibold bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full">
+            <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+            Ready
+          </span>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex gap-3 mt-5">
+          <button id="analyzeBtn" class="flex-1 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2" disabled onclick="analyzePrescription()">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            </svg>
+            Analyze Prescription
+          </button>
+          <button id="clearBtn" class="hidden px-5 py-3 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition-all font-medium" onclick="clearAll()">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loadingState" class="hidden bg-white rounded-2xl shadow-sm border border-teal-100 p-10 text-center mb-8 fade-in">
+      <div class="spinner mx-auto mb-4"></div>
+      <p class="text-slate-700 font-medium" id="loadingText">Analyzing your prescription with Vision AI...</p>
+      <p class="text-sm text-slate-400 mt-1">Reading and interpreting your prescription image</p>
+      <div class="flex justify-center gap-2 mt-5">
+        <span class="w-2 h-2 bg-teal-300 rounded-full animate-bounce" style="animation-delay:0s"></span>
+        <span class="w-2 h-2 bg-teal-400 rounded-full animate-bounce" style="animation-delay:0.15s"></span>
+        <span class="w-2 h-2 bg-teal-500 rounded-full animate-bounce" style="animation-delay:0.3s"></span>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 rounded-2xl p-6 mb-8 fade-in">
+      <div class="flex gap-3 items-start">
+        <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+          <svg class="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+          </svg>
+        </div>
+        <div>
+          <p class="font-semibold text-red-800">Could not process prescription</p>
+          <p id="errorMsg" class="text-sm text-red-600 mt-1"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="resultsSection" class="hidden slide-up">
+
+      <!-- Action Bar -->
+      <div id="confidenceBanner" class="rounded-2xl p-4 mb-6 flex items-center gap-3 flex-wrap">
+        <div id="confidenceIcon" class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"></div>
+        <div>
+          <p id="confidenceText" class="font-semibold text-sm"></p>
+          <p id="confidenceSubText" class="text-xs mt-0.5"></p>
+        </div>
+        <div class="ml-auto flex items-center gap-2 flex-wrap">
+          <!-- Urdu Toggle -->
+          <button id="urduBtn" onclick="toggleUrdu()"
+            class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all">
+            <span>🇵🇰</span>
+            <span id="urduBtnText">اردو میں دیکھیں</span>
+          </button>
+          <!-- Download PDF -->
+          <button id="downloadBtn" onclick="downloadPDF()"
+            class="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <span class="hidden sm:inline">Download PDF</span>
+            <span class="sm:hidden">PDF</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Urdu Panel -->
+      <div id="urduPanel" class="hidden bg-green-50 border border-green-200 rounded-2xl p-6 mb-6 fade-in">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-green-800 text-lg">🇵🇰 اردو خلاصہ</h3>
+          <span id="urduStatus" class="text-xs text-green-600"></span>
+        </div>
+        <div id="urduContent" class="urdu-text text-slate-700 leading-loose">
+          <div class="flex items-center gap-2 text-green-600"><span class="mini-spinner"></span> ترجمہ ہو رہا ہے...</div>
+        </div>
+      </div>
+
+      <!-- AI Badge -->
+      <div class="mb-4 flex justify-end">
+        <span id="aiProviderBadge" class="hidden"></span>
+      </div>
+
+      <!-- Info Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6" id="infoGrid"></div>
+
+      <!-- Diagnosis -->
+      <div id="diagnosisSection" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-6">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
+          </svg>
+          <h4 class="font-semibold text-amber-800">Diagnosis / Chief Complaint</h4>
+        </div>
+        <p id="diagnosisText" class="text-amber-700"></p>
+      </div>
+
+      <!-- Medicines -->
+      <div class="bg-white rounded-2xl shadow-sm border border-teal-100 overflow-hidden mb-6">
+        <div class="bg-gradient-to-r from-teal-600 to-teal-500 p-5">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-teal-200" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+              <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+            </svg>
+            <h4 class="font-semibold text-white text-lg">Prescribed Medicines</h4>
+            <span id="medCount" class="ml-auto bg-white/20 text-white text-sm px-2.5 py-0.5 rounded-full font-medium"></span>
+          </div>
+        </div>
+        <div id="medicinesGrid" class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+      </div>
+
+      <!-- Instructions & Follow-up -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div id="instructionsSection" class="hidden bg-blue-50 border border-blue-100 rounded-2xl p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <h4 class="font-semibold text-blue-800">General Instructions</h4>
+          </div>
+          <ul id="instructionsList" class="space-y-2 text-sm text-blue-700"></ul>
+        </div>
+        <div class="space-y-4">
+          <div id="followUpSection" class="hidden bg-purple-50 border border-purple-100 rounded-2xl p-5">
+            <div class="flex items-center gap-2 mb-2">
+              <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              <h4 class="font-semibold text-purple-800">Follow-up</h4>
+            </div>
+            <p id="followUpText" class="text-sm text-purple-700"></p>
+          </div>
+          <div id="dietSection" class="hidden bg-green-50 border border-green-100 rounded-2xl p-5">
+            <div class="flex items-center gap-2 mb-2">
+              <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+              </svg>
+              <h4 class="font-semibold text-green-800">Diet Advice</h4>
+            </div>
+            <p id="dietText" class="text-sm text-green-700"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div id="notesSection" class="hidden bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-6">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="w-5 h-5 text-slate-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+          </svg>
+          <h4 class="font-semibold text-slate-700">AI Notes</h4>
+        </div>
+        <p id="notesText" class="text-sm text-slate-600"></p>
+      </div>
+
+      <!-- Disclaimer -->
+      <div class="bg-gradient-to-r from-slate-800 to-slate-700 rounded-2xl p-5 text-center">
+        <p class="text-slate-300 text-sm">
+          <span class="text-white font-semibold">⚕ Medical Disclaimer:</span>
+          This AI summary is for informational purposes only and does not replace professional medical advice.
+          Always follow your doctor's original prescription.
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-teal-100 bg-white py-6 mt-10">
+    <div class="max-w-5xl mx-auto px-4 text-center text-sm text-slate-400">
+      <p>Built with ♥ for Pakistani patients · Powered by Groq &amp; Llama 4 Vision · <span class="text-teal-600">Rx Reader</span></p>
+      <p class="mt-1 text-xs">Not a substitute for professional medical advice</p>
+    </div>
+  </footer>
+
+  <!-- Medicine Detail Modal -->
+  <div id="medModal" class="modal-overlay hidden" onclick="if(event.target===this)closeMedModal()">
+    <div class="modal-box">
+      <div class="p-6">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <h3 id="modalMedName" class="text-xl font-bold text-slate-800"></h3>
+            <p id="modalMedGeneric" class="text-sm text-teal-600 mt-0.5"></p>
+          </div>
+          <button onclick="closeMedModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 text-lg transition-all flex-shrink-0 ml-4">&times;</button>
+        </div>
+
+        <!-- Image -->
+        <div id="modalImgSection" class="mb-5">
+          <div id="modalImgLoader" class="flex items-center justify-center h-40 bg-slate-50 rounded-xl">
+            <div class="text-center">
+              <div class="mini-spinner mx-auto mb-2"></div>
+              <p class="text-xs text-slate-400">Loading image...</p>
+            </div>
+          </div>
+          <img id="modalImg" class="hidden w-full max-h-52 object-contain rounded-xl bg-slate-50" alt="Medicine" onerror="this.classList.add('hidden'); document.getElementById('modalImgFallback').classList.remove('hidden')" />
+          <div id="modalImgFallback" class="hidden flex items-center justify-center h-32 bg-slate-50 rounded-xl text-slate-400 text-sm">No image available</div>
+        </div>
+
+        <!-- Detail content -->
+        <div id="modalContent">
+          <div class="flex items-center gap-2 text-slate-500 text-sm">
+            <div class="mini-spinner"></div>
+            Loading medicine details...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let selectedFile = null;
+    let currentData = null;
+    let urduVisible = false;
+    let urduLoaded = false;
+
+    // ---- Drag & Drop ----
+    const dropZone = document.getElementById('dropZone');
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault(); dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) handleFile(file);
+    });
+    document.getElementById('fileInput').addEventListener('change', e => {
+      if (e.target.files[0]) handleFile(e.target.files[0]);
+    });
+
+    function handleFile(file) {
+      selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('previewImg').src = e.target.result;
+        document.getElementById('previewName').textContent = file.name;
+        document.getElementById('dropContent').classList.add('hidden');
+        document.getElementById('previewContainer').classList.remove('hidden');
+        document.getElementById('analyzeBtn').disabled = false;
+        document.getElementById('clearBtn').classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearAll() {
+      selectedFile = null; currentData = null; urduLoaded = false; urduVisible = false;
+      document.getElementById('fileInput').value = '';
+      document.getElementById('dropContent').classList.remove('hidden');
+      document.getElementById('previewContainer').classList.add('hidden');
+      document.getElementById('analyzeBtn').disabled = true;
+      document.getElementById('clearBtn').classList.add('hidden');
+      document.getElementById('resultsSection').classList.add('hidden');
+      document.getElementById('errorState').classList.add('hidden');
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('urduPanel').classList.add('hidden');
+    }
+
+    async function analyzePrescription() {
+      if (!selectedFile) return;
+      document.getElementById('loadingState').classList.remove('hidden');
+      document.getElementById('resultsSection').classList.add('hidden');
+      document.getElementById('errorState').classList.add('hidden');
+      document.getElementById('analyzeBtn').disabled = true;
+      urduLoaded = false; urduVisible = false;
+
+      const formData = new FormData();
+      formData.append('prescription', selectedFile);
+      formData.append('ai_provider', 'groq');
+
+      try {
+        const res = await fetch('/analyze', { method: 'POST', body: formData });
+        const json = await res.json();
+        document.getElementById('loadingState').classList.add('hidden');
+        if (!res.ok || json.error) {
+          document.getElementById('errorMsg').textContent = json.error || 'Unknown error.';
+          document.getElementById('errorState').classList.remove('hidden');
+        } else {
+          currentData = json.data;
+          renderResults(json.data);
+        }
+      } catch (err) {
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('errorMsg').textContent = 'Network error. Please check your connection.';
+        document.getElementById('errorState').classList.remove('hidden');
+      }
+      document.getElementById('analyzeBtn').disabled = false;
+    }
+
+    // ---- URDU TRANSLATION ----
+    async function toggleUrdu() {
+      const panel = document.getElementById('urduPanel');
+      if (urduVisible) {
+        panel.classList.add('hidden');
+        urduVisible = false;
+        document.getElementById('urduBtnText').textContent = 'اردو میں دیکھیں';
+        return;
+      }
+      panel.classList.remove('hidden');
+      urduVisible = true;
+      document.getElementById('urduBtnText').textContent = 'Hide Urdu';
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      if (urduLoaded) return;
+
+      document.getElementById('urduContent').innerHTML = '<div class="flex items-center gap-2 text-green-600"><span class="mini-spinner"></span> ترجمہ ہو رہا ہے...</div>';
+
+      try {
+        const res = await fetch('/translate-urdu', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(currentData)
+        });
+        const json = await res.json();
+        if (json.urdu) {
+          document.getElementById('urduContent').innerHTML = `<div class="urdu-text">${json.urdu.replace(/\n/g, '<br/>')}</div>`;
+          urduLoaded = true;
+        } else {
+          document.getElementById('urduContent').innerHTML = '<p class="text-red-500 text-sm">ترجمہ ناکام ہوا۔ دوبارہ کوشش کریں۔</p>';
+        }
+      } catch (e) {
+        document.getElementById('urduContent').innerHTML = '<p class="text-red-500 text-sm">نیٹ ورک خرابی۔</p>';
+      }
+    }
+
+    // ---- MEDICINE DETAIL MODAL ----
+    async function showMedDetail(medName, genericName) {
+      document.getElementById('medModal').classList.remove('hidden');
+      document.getElementById('modalMedName').textContent = medName;
+      document.getElementById('modalMedGeneric').textContent = genericName || '';
+      document.getElementById('modalImg').classList.add('hidden');
+      document.getElementById('modalImgLoader').classList.remove('hidden');
+      document.getElementById('modalImgFallback').classList.add('hidden');
+      document.getElementById('modalContent').innerHTML = '<div class="flex items-center gap-2 text-slate-500 text-sm"><div class="mini-spinner"></div> Loading medicine details...</div>';
+
+      try {
+        const res = await fetch('/medicine-detail', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: medName, generic_name: genericName })
+        });
+        const json = await res.json();
+
+        // Image
+        document.getElementById('modalImgLoader').classList.add('hidden');
+        if (json.image_url) {
+          const img = document.getElementById('modalImg');
+          img.src = json.image_url;
+          img.classList.remove('hidden');
+        } else {
+          document.getElementById('modalImgFallback').classList.remove('hidden');
+        }
+
+        // Detail content
+        if (json.detail) {
+          const d = json.detail;
+          document.getElementById('modalContent').innerHTML = `
+            <div class="space-y-3">
+              ${d.category ? `<div class="flex items-center gap-2"><span class="bg-teal-100 text-teal-700 text-xs font-semibold px-2.5 py-1 rounded-full">${d.category}</span></div>` : ''}
+              ${d.use ? `<div class="bg-blue-50 rounded-xl p-4"><p class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">💊 Used For</p><p class="text-sm text-slate-700">${d.use}</p></div>` : ''}
+              ${d.how_it_works ? `<div class="bg-slate-50 rounded-xl p-4"><p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">⚙️ How It Works</p><p class="text-sm text-slate-700">${d.how_it_works}</p></div>` : ''}
+              ${d.side_effects ? `<div class="bg-red-50 rounded-xl p-4"><p class="text-xs font-semibold text-red-500 uppercase tracking-wide mb-1">⚠️ Common Side Effects</p><p class="text-sm text-slate-700">${d.side_effects}</p></div>` : ''}
+              ${d.precautions ? `<div class="bg-amber-50 rounded-xl p-4"><p class="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-1">🔔 Precautions</p><p class="text-sm text-slate-700">${d.precautions}</p></div>` : ''}
+              ${d.storage ? `<div class="bg-purple-50 rounded-xl p-4"><p class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-1">🏠 Storage</p><p class="text-sm text-slate-700">${d.storage}</p></div>` : ''}
+              <p class="text-xs text-slate-400 italic pt-2">ℹ️ This information is general. Always follow your doctor's specific instructions.</p>
+            </div>`;
+        }
+      } catch (e) {
+        document.getElementById('modalImgLoader').classList.add('hidden');
+        document.getElementById('modalImgFallback').classList.remove('hidden');
+        document.getElementById('modalContent').innerHTML = '<p class="text-red-500 text-sm">Failed to load details. Please try again.</p>';
+      }
+    }
+
+    function closeMedModal() {
+      document.getElementById('medModal').classList.add('hidden');
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMedModal(); });
+
+    // ---- RENDER RESULTS ----
+    function renderResults(data) {
+      const conf = data.confidence || 'medium';
+      const bannerColors = { high: 'bg-emerald-50 border border-emerald-200', medium: 'bg-amber-50 border border-amber-200', low: 'bg-red-50 border border-red-200' };
+      const bannerIconColors = { high: 'bg-emerald-100', medium: 'bg-amber-100', low: 'bg-red-100' };
+      const bannerTexts = {
+        high: ['High Confidence', 'Prescription was clearly readable'],
+        medium: ['Medium Confidence', 'Some parts may need manual verification'],
+        low: ['Low Confidence', 'Please verify with your doctor']
+      };
+      const banner = document.getElementById('confidenceBanner');
+      banner.className = `rounded-2xl p-4 mb-6 flex items-center gap-3 flex-wrap ${bannerColors[conf]}`;
+      const icon = document.getElementById('confidenceIcon');
+      icon.className = `w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${bannerIconColors[conf]}`;
+      icon.innerHTML = conf === 'high'
+        ? `<svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>`
+        : conf === 'medium'
+        ? `<svg class="w-4 h-4 text-amber-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`
+        : `<svg class="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>`;
+      document.getElementById('confidenceText').textContent = bannerTexts[conf][0];
+      document.getElementById('confidenceText').className = `font-semibold text-sm ${conf==='high'?'text-emerald-800':conf==='medium'?'text-amber-800':'text-red-800'}`;
+      document.getElementById('confidenceSubText').textContent = bannerTexts[conf][1];
+      document.getElementById('confidenceSubText').className = `text-xs mt-0.5 ${conf==='high'?'text-emerald-600':conf==='medium'?'text-amber-600':'text-red-600'}`;
+
+      // AI Badge
+      const badge = document.getElementById('aiProviderBadge');
+      if (data.ai_provider) {
+        badge.className = 'inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-teal-600 text-white';
+        badge.textContent = `✦ Analyzed by Vision AI`;
+        badge.classList.remove('hidden');
+      }
+
+      // Info Grid
+      const infoGrid = document.getElementById('infoGrid');
+      infoGrid.innerHTML = '';
+      const infoFields = [
+        { icon: '👤', label: 'Patient Name', key: 'patient_name' },
+        { icon: '🎂', label: 'Patient Age', key: 'patient_age' },
+        { icon: '⚧', label: 'Sex', key: 'patient_sex' },
+        { icon: '👨‍⚕️', label: 'Doctor Name', key: 'doctor_name' },
+        { icon: '🎓', label: 'Qualification', key: 'doctor_qualification' },
+        { icon: '🏥', label: 'Clinic / Hospital', key: 'clinic_hospital' },
+        { icon: '📅', label: 'Date', key: 'date' },
+        { icon: '🔢', label: 'Ref / UHID No', key: 'ref_no' },
+        { icon: '🩺', label: 'Chief Complaint', key: 'chief_complaint' },
+      ];
+      infoFields.forEach(f => {
+        if (data[f.key]) infoGrid.innerHTML += infoCard(f.icon, f.label, data[f.key]);
+      });
+      const vitals = data.vitals || {};
+      [['🩸','Blood Pressure',vitals.bp],['💓','Pulse',vitals.pulse],['🌡️','Temperature',vitals.temperature],['🩺','RBS',vitals.rbs],['💨','SpO2',vitals.spo2]]
+        .forEach(([icon,label,val]) => { if (val) infoGrid.innerHTML += infoCard(icon, label, val); });
+
+      // Diagnosis
+      const diagSec = document.getElementById('diagnosisSection');
+      if (data.diagnosis) { document.getElementById('diagnosisText').textContent = data.diagnosis; diagSec.classList.remove('hidden'); }
+      else diagSec.classList.add('hidden');
+
+      // Medicines
+      const meds = data.medicines || [];
+      document.getElementById('medCount').textContent = `${meds.length} medicine${meds.length !== 1 ? 's' : ''}`;
+      const grid = document.getElementById('medicinesGrid');
+      grid.innerHTML = meds.length === 0
+        ? '<p class="text-slate-400 text-sm col-span-2">No medicines identified</p>'
+        : meds.map((m, i) => `
+          <div class="med-card bg-white border border-teal-100 rounded-xl p-4 shadow-sm">
+            <div class="flex items-start justify-between gap-2 mb-3">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="w-6 h-6 bg-teal-100 text-teal-700 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0">${i+1}</span>
+                  <p class="font-semibold text-slate-800 truncate">${m.name || 'Unknown'}</p>
+                </div>
+                ${m.generic_name ? `<p class="text-xs text-teal-600 mt-0.5 ml-8">${m.generic_name}</p>` : ''}
+              </div>
+              ${m.dosage ? `<span class="bg-teal-50 text-teal-700 text-xs font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap flex-shrink-0">${m.dosage}</span>` : ''}
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-xs mb-3">
+              ${m.frequency ? `<div class="bg-slate-50 rounded-lg p-2"><p class="text-slate-400 font-medium">FREQUENCY</p><p class="text-slate-700 font-semibold mt-0.5">${m.frequency}</p></div>` : ''}
+              ${m.duration ? `<div class="bg-slate-50 rounded-lg p-2"><p class="text-slate-400 font-medium">DURATION</p><p class="text-slate-700 font-semibold mt-0.5">${m.duration}</p></div>` : ''}
+              ${m.route ? `<div class="bg-slate-50 rounded-lg p-2"><p class="text-slate-400 font-medium">ROUTE</p><p class="text-slate-700 font-semibold mt-0.5">${m.route}</p></div>` : ''}
+            </div>
+            ${m.instructions ? `<div class="mb-3 bg-amber-50 rounded-lg px-3 py-2"><p class="text-xs text-amber-700"><span class="font-semibold">⚠ Note:</span> ${m.instructions}</p></div>` : ''}
+            <button onclick="showMedDetail('${escapeStr(m.name)}','${escapeStr(m.generic_name||'')}')"
+              class="w-full flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold py-2 px-3 rounded-lg transition-all">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              View Details &amp; Image
+            </button>
+          </div>`).join('');
+
+      // Instructions
+      const instSec = document.getElementById('instructionsSection');
+      const instList = document.getElementById('instructionsList');
+      if (data.general_instructions && data.general_instructions.length) {
+        instList.innerHTML = data.general_instructions.map(i => `<li class="flex items-start gap-2"><span class="text-blue-400 mt-0.5">•</span>${i}</li>`).join('');
+        instSec.classList.remove('hidden');
+      } else instSec.classList.add('hidden');
+
+      if (data.follow_up) { document.getElementById('followUpText').textContent = data.follow_up; document.getElementById('followUpSection').classList.remove('hidden'); }
+      else document.getElementById('followUpSection').classList.add('hidden');
+      if (data.diet_advice) { document.getElementById('dietText').textContent = data.diet_advice; document.getElementById('dietSection').classList.remove('hidden'); }
+      else document.getElementById('dietSection').classList.add('hidden');
+      if (data.notes) { document.getElementById('notesText').textContent = data.notes; document.getElementById('notesSection').classList.remove('hidden'); }
+      else document.getElementById('notesSection').classList.add('hidden');
+
+      document.getElementById('resultsSection').classList.remove('hidden');
+      document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function infoCard(icon, label, value) {
+      return `<div class="bg-white rounded-xl border border-slate-100 p-4 flex items-start gap-3 shadow-sm">
+        <span class="text-xl">${icon}</span>
+        <div><p class="text-xs text-slate-400 font-medium uppercase tracking-wide">${label}</p>
+        <p class="text-slate-800 font-medium mt-0.5">${value}</p></div></div>`;
+    }
+
+    function escapeStr(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+    // ---- PDF DOWNLOAD ----
+    async function downloadPDF() {
+      if (!currentData) return;
+      const btn = document.getElementById('downloadBtn');
+      btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Generating...`;
+      btn.disabled = true;
+      try {
+        const res = await fetch('/download-pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentData) });
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = 'prescription_summary.pdf'; a.click();
+          window.URL.revokeObjectURL(url);
+        }
+      } catch (err) { alert('Failed to generate PDF.'); }
+      btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg><span class="hidden sm:inline">Download PDF</span><span class="sm:hidden">PDF</span>`;
+      btn.disabled = false;
+    }
+  </script>
+
+  <!-- Footer -->
+  <footer class="bg-teal-900 text-white mt-16">
+    <div class="max-w-5xl mx-auto px-4 py-10">
+
+      <!-- Top Row -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-8 border-b border-teal-700">
+        <!-- Brand -->
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center shadow-md">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+          </div>
+          <div>
+            <h2 class="font-serif text-lg leading-none">Rx Reader</h2>
+            <p class="text-xs text-teal-400 mt-0.5">Prescription Interpreter</p>
+          </div>
+        </div>
+
+        <!-- Badges -->
+        <div class="flex flex-wrap gap-2 text-xs">
+          <span class="bg-teal-800 text-teal-200 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
+            AI-Powered
+          </span>
+          <span class="bg-teal-800 text-teal-200 px-3 py-1.5 rounded-full">🇵🇰 Made for Pakistan</span>
+          <span class="bg-teal-800 text-teal-200 px-3 py-1.5 rounded-full">Free to Use</span>
+        </div>
+      </div>
+
+      <!-- Middle Row -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 py-8 border-b border-teal-700">
+
+        <!-- About -->
+        <div>
+          <h3 class="text-sm font-semibold text-teal-300 uppercase tracking-wide mb-3">About</h3>
+          <p class="text-sm text-teal-400 leading-relaxed">
+            Rx Reader helps Pakistani patients understand handwritten doctor prescriptions using AI vision technology — available in English and Urdu.
+          </p>
+        </div>
+
+        <!-- Features -->
+        <div>
+          <h3 class="text-sm font-semibold text-teal-300 uppercase tracking-wide mb-3">Features</h3>
+          <ul class="space-y-2 text-sm text-teal-400">
+            <li class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-teal-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              Urdu Translation
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-teal-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              Medicine Details & Images
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-teal-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              Download PDF Summary
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-teal-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              Groq Llama 4 Vision AI
+            </li>
+          </ul>
+        </div>
+
+        <!-- Disclaimer -->
+        <div>
+          <h3 class="text-sm font-semibold text-teal-300 uppercase tracking-wide mb-3">Disclaimer</h3>
+          <p class="text-sm text-teal-400 leading-relaxed">
+            This tool is for informational purposes only. Always consult your doctor or pharmacist before taking any medication. Do not rely solely on AI for medical decisions.
+          </p>
+        </div>
+      </div>
+
+      <!-- Bottom Row — Developers -->
+      <div class="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+
+        <!-- Developers -->
+        <div class="flex flex-col sm:flex-row items-center gap-4">
+          <p class="text-xs text-teal-500 font-medium uppercase tracking-wide">Developed by</p>
+          <div class="flex items-center gap-3">
+            <!-- Developer 1 -->
+            <div class="flex items-center gap-2 bg-teal-800 px-3 py-2 rounded-xl">
+              <div class="w-7 h-7 bg-teal-600 rounded-full flex items-center justify-center text-xs font-bold text-white">MS</div>
+              <div>
+                <p class="text-sm font-semibold text-white leading-none">Muhammad Saad</p>
+                <p class="text-xs text-teal-400 mt-0.5">Idea & Concept · ML Researcher</p>
+              </div>
+            </div>
+            <span class="text-teal-600 font-bold">&</span>
+            <!-- Developer 2 -->
+            <div class="flex items-center gap-2 bg-teal-800 px-3 py-2 rounded-xl">
+              <div class="w-7 h-7 bg-emerald-600 rounded-full flex items-center justify-center text-xs font-bold text-white">RN</div>
+              <div>
+                <p class="text-sm font-semibold text-white leading-none">Rana Nasir</p>
+                <p class="text-xs text-teal-400 mt-0.5">AI & Backend · Built & Implemented</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Copyright -->
+        <p class="text-xs text-teal-600 text-center sm:text-right">
+          © 2025 Rx Reader. All rights reserved.<br/>
+          <span class="text-teal-700">Built with ❤️ for Pakistan 🇵🇰</span>
+        </p>
+      </div>
+
+    </div>
+  </footer>
+
+</body>
+</html>
