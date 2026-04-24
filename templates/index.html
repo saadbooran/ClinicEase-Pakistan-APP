@@ -417,7 +417,6 @@
 
       const formData = new FormData();
       formData.append('prescription', selectedFile);
-      formData.append('ai_provider', 'groq');
 
       try {
         const res = await fetch('/analyze', { method: 'POST', body: formData });
@@ -492,15 +491,9 @@
         });
         const json = await res.json();
 
-        // Image
+        // Hide image section (no image source available)
         document.getElementById('modalImgLoader').classList.add('hidden');
-        if (json.image_url) {
-          const img = document.getElementById('modalImg');
-          img.src = json.image_url;
-          img.classList.remove('hidden');
-        } else {
-          document.getElementById('modalImgFallback').classList.remove('hidden');
-        }
+        document.getElementById('modalImgFallback').classList.remove('hidden');
 
         // Detail content
         if (json.detail) {

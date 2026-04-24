@@ -3,11 +3,10 @@ import io
 import json
 import re
 import base64
-import tempfile
 
 from flask import Flask, request, jsonify, send_file, render_template
 from dotenv import load_dotenv
-from openai import OpenAI
+from groq import Groq
 
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -19,16 +18,12 @@ from reportlab.lib import colors
 load_dotenv()
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
 # ---------------- GROQ CLIENT ---------------- #
 
-groq_client = OpenAI(
-    api_key=os.getenv("GROQ_API_KEY"),
-    base_url="https://api.groq.com/openai/v1"
-)
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # ---------------- UTIL ---------------- #
 
@@ -54,8 +49,8 @@ Look at this prescription image carefully and extract ALL visible information.
 
 The prescription may be:
 - Handwritten or printed
-- In English, Urdu, Hindi, Kannada, or mixed languages
-- From any country (Pakistan, India, etc.)
+- In English, Urdu, Hindi, or mixed languages
+- From Pakistan or India
 - Containing abbreviations like: C/o, Dx, Rx, OD, BD, TDS, QID, SOS, IV, IM, SC, stat, PRN
 - Containing vital signs: BP, PR, RR, Temp, RBS, SpO2
 
@@ -128,7 +123,6 @@ Rules:
     )
 
     content = response.choices[0].message.content
-    # Strip markdown fences if present
     content = re.sub(r'^```(?:json)?\s*', '', content.strip())
     content = re.sub(r'\s*```$', '', content.strip())
     content = content.strip()
@@ -138,7 +132,6 @@ Rules:
         result['ai_provider'] = 'Groq (Llama 4 Scout Vision)'
         return result
     except Exception:
-        # Try to salvage partial JSON
         try:
             start = content.index('{')
             end = content.rindex('}') + 1
@@ -176,7 +169,6 @@ def generate_pdf(data):
     story.append(Paragraph("Rx Reader — Prescription Report", title_style))
     story.append(Spacer(1, 8))
 
-    # Patient / Doctor info
     vitals = data.get('vitals') or {}
     info_fields = [
         ('Patient Name', data.get('patient_name')),
@@ -237,12 +229,11 @@ def generate_pdf(data):
         story.append(tbl)
         story.append(Spacer(1, 8))
 
-    for label, key in [("General Instructions", 'general_instructions')]:
-        val = data.get(key, [])
-        if val:
-            story.append(Paragraph(label, heading_style))
-            for item in val:
-                story.append(Paragraph(f"• {item}", body_style))
+    val = data.get('general_instructions', [])
+    if val:
+        story.append(Paragraph("General Instructions", heading_style))
+        for item in val:
+            story.append(Paragraph(f"• {item}", body_style))
 
     for label, key in [("Follow-up", 'follow_up'), ("Diet Advice", 'diet_advice'), ("Notes", 'notes')]:
         val = data.get(key)
@@ -284,26 +275,16 @@ def analyze():
     try:
         image_bytes = file.read()
         result = parse_prescription_with_vision(image_bytes, file.filename)
-
-        return jsonify({
-            "success": True,
-            "data": result
-        })
-
+        return jsonify({"success": True, "data": result})
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route('/download-pdf', methods=['POST'])
 def download_pdf():
     data = request.get_json()
-
     if not data:
         return jsonify({'error': 'No data provided'}), 400
-
     try:
         pdf_buffer = generate_pdf(data)
         return send_file(
@@ -325,31 +306,29 @@ def translate_urdu():
         return jsonify({'error': 'No data'}), 400
 
     summary_lines = []
-    if data.get('patient_name'):   summary_lines.append(f"Patient Name: {data['patient_name']}")
-    if data.get('patient_age'):    summary_lines.append(f"Age: {data['patient_age']}")
-    if data.get('patient_sex'):    summary_lines.append(f"Sex: {data['patient_sex']}")
-    if data.get('doctor_name'):    summary_lines.append(f"Doctor: {data['doctor_name']}")
-    if data.get('clinic_hospital'):summary_lines.append(f"Hospital: {data['clinic_hospital']}")
-    if data.get('date'):           summary_lines.append(f"Date: {data['date']}")
-    if data.get('chief_complaint'):summary_lines.append(f"Complaint: {data['chief_complaint']}")
-    if data.get('diagnosis'):      summary_lines.append(f"Diagnosis: {data['diagnosis']}")
+    if data.get('patient_name'):    summary_lines.append(f"Patient Name: {data['patient_name']}")
+    if data.get('patient_age'):     summary_lines.append(f"Age: {data['patient_age']}")
+    if data.get('patient_sex'):     summary_lines.append(f"Sex: {data['patient_sex']}")
+    if data.get('doctor_name'):     summary_lines.append(f"Doctor: {data['doctor_name']}")
+    if data.get('clinic_hospital'): summary_lines.append(f"Hospital: {data['clinic_hospital']}")
+    if data.get('date'):            summary_lines.append(f"Date: {data['date']}")
+    if data.get('chief_complaint'): summary_lines.append(f"Complaint: {data['chief_complaint']}")
+    if data.get('diagnosis'):       summary_lines.append(f"Diagnosis: {data['diagnosis']}")
     vitals = data.get('vitals') or {}
     if vitals.get('bp'):    summary_lines.append(f"Blood Pressure: {vitals['bp']}")
     if vitals.get('pulse'): summary_lines.append(f"Pulse: {vitals['pulse']}")
     if vitals.get('rbs'):   summary_lines.append(f"RBS: {vitals['rbs']}")
 
-    meds = data.get('medicines', [])
-    for i, m in enumerate(meds, 1):
+    for i, m in enumerate(data.get('medicines', []), 1):
         med_str = f"Medicine {i}: {m.get('name','')}"
-        if m.get('dosage'):     med_str += f", Dosage: {m['dosage']}"
-        if m.get('frequency'):  med_str += f", Frequency: {m['frequency']}"
-        if m.get('route'):      med_str += f", Route: {m['route']}"
-        if m.get('duration'):   med_str += f", Duration: {m['duration']}"
+        if m.get('dosage'):       med_str += f", Dosage: {m['dosage']}"
+        if m.get('frequency'):    med_str += f", Frequency: {m['frequency']}"
+        if m.get('route'):        med_str += f", Route: {m['route']}"
+        if m.get('duration'):     med_str += f", Duration: {m['duration']}"
         if m.get('instructions'): med_str += f", Note: {m['instructions']}"
         summary_lines.append(med_str)
 
-    instructions = data.get('general_instructions', [])
-    for inst in instructions:
+    for inst in data.get('general_instructions', []):
         summary_lines.append(f"Instruction: {inst}")
     if data.get('follow_up'):   summary_lines.append(f"Follow-up: {data['follow_up']}")
     if data.get('diet_advice'): summary_lines.append(f"Diet: {data['diet_advice']}")
@@ -406,8 +385,7 @@ Return this exact JSON structure:
   "how_it_works": string (simple explanation of mechanism, 1-2 sentences),
   "side_effects": string (common side effects, comma-separated),
   "precautions": string (important precautions, 2-3 sentences),
-  "storage": string (how to store it),
-  "image_search_term": string (best Google Images search term to find a photo of this medicine/pill/vial)
+  "storage": string (how to store it)
 }}
 
 Rules:
@@ -431,15 +409,7 @@ Rules:
 
     try:
         detail = json.loads(content)
-        # Build a Google image search URL for the medicine
-        search_term = detail.get('image_search_term', med_name + ' medicine tablet')
-        image_url = f"https://source.unsplash.com/400x200/?medicine,pill,tablet,{search_term.replace(' ',',')}"
-        # Use a reliable open image source via Wikipedia/OpenFDA style search term
-        # We'll pass back a placeholder that the frontend can use
-        return jsonify({
-            'detail': detail,
-            'image_url': f"https://via.placeholder.com/400x200/0d9488/ffffff?text={med_name.replace(' ','+')}"
-        })
+        return jsonify({'detail': detail})
     except Exception:
         return jsonify({
             'detail': {
@@ -449,8 +419,7 @@ Rules:
                 'storage': None,
                 'category': None,
                 'how_it_works': None
-            },
-            'image_url': None
+            }
         })
 
 
